@@ -131,7 +131,7 @@ ECODE HTMLParser::ParseFromMemory(std::tstring& strContext)
 			// EndTag
 			else
 			{
-				dd
+
 			}
 		}
 		// value

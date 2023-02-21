@@ -1,6 +1,5 @@
 #pragma once
 
-
 class HTMLParser
 {
 	HANDLE m_hFile;
