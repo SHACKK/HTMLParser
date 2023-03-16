@@ -1,27 +1,31 @@
 #pragma once
 
-class HTMLParser
+class CHtmlParser
 {
-	HANDLE m_hFile;
-	HANDLE m_hMap;
 	std::tstring m_strFileName;
 	std::tstring m_strContext;
 
+	std::vector<sGroupingData> m_vecObjectCountStack;
+	std::stack<ST_HTML_NODE> m_stackTraverse;
+	bool m_bValidity;
+	bool m_bReserved[7];
+	std::tstring m_strErrMsg;
+
+	ST_HTML_NODE m_stDummy;
 	ST_HTML_NODE m_stRoot;
 
-	LPSTR m_pszContext;
-	size_t m_tContextSize;
-
 private:
-	bool Open(std::tstring strHtmlFile, std::tstring& strContext);
-	void Close();
-	ECODE ParseFromMemory(std::tstring& strContext);
+	bool ParseFromMemory(std::tstring& strContext, ST_HTML_NODE& stOutRoot, std::tstring& strOutErrMsg);
 
 public:
-	HTMLParser();
-	~HTMLParser();
+	CHtmlParser(void);
+	~CHtmlParser(void);
 
-	ECODE Parse(const std::tstring& strHtmlFile);
-	ST_HTML_NODE& GetRoot();
+	bool Open(std::tstring strFileName);
+	ECODE Parse(std::tstring strFileName);
+
+public:
+	ST_HTML_NODE GetDomTree(void);
+	bool GetContext(std::tstring& strOutContext);
 };
 

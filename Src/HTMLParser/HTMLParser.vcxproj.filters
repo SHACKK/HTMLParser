@@ -4,10 +4,12 @@
     <ClCompile Include="HTMLParser.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="HelperFunc.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HTMLParser.h" />
     <ClInclude Include="struct.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="HelperFunc.h" />
   </ItemGroup>
 </Project>

@@ -155,6 +155,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="HelperFunc.cpp" />
     <ClCompile Include="HTMLParser.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp">
@@ -165,6 +166,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="HelperFunc.h" />
     <ClInclude Include="HTMLParser.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="struct.h" />

@@ -3,8 +3,9 @@
 
 int main(void)
 {
-	HTMLParser parser;
-	parser.Parse(TEXT("D:\\GIT\\tks\\Test\\HTMLTest\\Sample\\test.html"));
-
+	std::tstring strTargetHTML = TEXT("test.html");
+	CHtmlParser parser;
+	parser.Parse(strTargetHTML);
+	
 	return 0;
 }

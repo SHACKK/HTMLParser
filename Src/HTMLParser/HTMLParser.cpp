@@ -1,171 +1,118 @@
 #include "pch.h"
-#include "HTMLParser.h"
+#include "HtmlParser.h"
+#include "HelperFunc.h"
 
-HTMLParser::HTMLParser()
-	: m_hFile(NULL)
-	, m_hMap(NULL)
-	, m_strFileName()
+CHtmlParser::CHtmlParser(void)
+	: m_strFileName()
 	, m_strContext()
+	, m_vecObjectCountStack()
+	, m_stackTraverse()
+	, m_bValidity(false)
+	, m_bReserved()
+	, m_strErrMsg()
+	, m_stDummy()
 	, m_stRoot()
-	, m_pszContext()
-	, m_tContextSize()
 {
 }
 
-HTMLParser::~HTMLParser()
+CHtmlParser::~CHtmlParser(void)
 {
-	Close();
 }
 
-bool HTMLParser::Open(std::tstring strHtmlFile, std::tstring& strContext)
+bool CHtmlParser::Open(std::tstring strFileName)
 {
+	HANDLE hFile = nullptr;
+	HANDLE hMap = nullptr;
+	LPCBYTE pFileData = nullptr;
+
 	try
 	{
-		m_hFile = CreateFile(strHtmlFile.c_str(), GENERIC_READ_, OPEN_EXISTING_, 0);
-		if(NULL == m_hFile)
-			throw exception_format(TEXT("CreateFile(%s) failure, %d"), strHtmlFile.c_str(), GetLastError());
+		hFile = CreateFile(strFileName.c_str(), GENERIC_READ_, OPEN_EXISTING_, FILE_ATTRIBUTE_NORMAL_);
+		if (NULL == hFile)
+			throw exception_format(TEXT("CreateFile(%s) failure, %d"), strFileName.c_str(), GetLastError());
 
-		m_tContextSize = (size_t)GetFileSize(m_hFile);
-		if (m_tContextSize == 0)
-			throw exception_format(TEXT("File size is 0, %s"), strHtmlFile.c_str());
+		size_t tFileSize = (size_t)GetFileSize(hFile);
+		hMap = core::CreateFileMapping(hFile, PAGE_READONLY_, FILE_MAP_READ_, tFileSize);
+		if (NULL == hMap)
+			throw exception_format("CreateFileMapping Error");
 
-		m_hMap = CreateFileMapping(m_hFile, PAGE_READONLY_, FILE_MAP_READ_, m_tContextSize);
-		if (NULL == m_hMap)
-			throw exception_format(TEXT("CreateFileMapping(%s) failure, %d"), strHtmlFile.c_str(), GetLastError());
+		pFileData = (BYTE*)MapViewOfFile(hMap, 0, tFileSize);
+		if (NULL == pFileData)
+			throw exception_format("MapViewOfFile Error");
 
-		m_pszContext = (LPSTR)MapViewOfFile(m_hMap, 0, m_tContextSize);
-		if (IsInvalidUTF8(m_pszContext, m_tContextSize))
-			strContext = TCSFromMBS(m_pszContext);
-		else
-			strContext = TCSFromUTF8(m_pszContext);
+		m_strContext = TCSFromUTF8((LPCSTR)pFileData, tFileSize);
+		m_strContext = EliminateHtmlComment(m_strContext, TEXT("<!--"), TEXT("-->"));
+		m_strContext = EliminateHtmlComment(m_strContext, TEXT("<!"), TEXT(">"));
+		m_strContext = EliminateHtmlComment(m_strContext, TEXT("<?"), TEXT("?>"));
 
-		if (strContext.empty())
-			throw exception_format(TEXT("Context Empty"));
+		UnmapViewOfFile(hMap, pFileData);
+		CloseFile(hFile);
 	}
 	catch (const std::exception& e)
 	{
-		Close();
+		if (hMap && pFileData)
+			UnmapViewOfFile(hMap, pFileData);
+
+		if (hFile)
+			CloseFile(hFile);
+
+		Log_Error("%s", e.what());
 		return false;
 	}
 	return true;
 }
 
-void HTMLParser::Close()
+bool CHtmlParser::ParseFromMemory(std::tstring& strContext, ST_HTML_NODE& stOutRoot, std::tstring& strOutErrMsg)
 {
-	if (m_hMap)
-	{
-		if (m_pszContext)
-			UnmapViewOfFile(m_hMap, m_pszContext);
-
-		CloseFileMappingHandle(m_hMap);
-		m_hMap = NULL;
-	}
-
-	if (m_hFile)
-	{
-		CloseFile(m_hFile);
-		m_hFile = NULL;
-	}
-
-	m_pszContext = NULL;
-}
-
-std::tstring EliminateComment(const std::tstring strContext, const std::tstring& strStartTag, const std::tstring& strEndTag)
-{
-	std::tstring strRet;
-
-	size_t tPos = 0;
-	size_t tStartTagPos = 0;
-	size_t tEndTagPos = 0;
-
-	while (std::tstring::npos != (tStartTagPos = strContext.find(strStartTag, tPos)))
-	{
-		tEndTagPos = strContext.find(strEndTag, tStartTagPos + strStartTag.length());
-		if (std::tstring::npos == tEndTagPos)
-			return strRet;
-
-		strRet += strContext.substr(tPos, tStartTagPos - tPos);
-		tPos = tEndTagPos + strEndTag.length();
-	}
-
-	if (tPos < strContext.length())
-		strRet += strContext.substr(tPos);
-
-	return strRet;
-}
-
-std::tstring MakeAttributeFormally(const std::tstring& strAttribute)
-{
-	std::tstring strRet;
-	
-	return strRet;
-}
-
-ECODE HTMLParser::ParseFromMemory(std::tstring& strContext)
-{
-	if (strContext.empty())
-		return EC_NO_DATA;
-
-	std::tstring strCurContext = EliminateComment(strContext, TEXT("<!--"), TEXT("-->"));
-
-	size_t tCurPos = 0;
-	size_t tCompletePos = 0;
-
-	while (std::tstring::npos != (tCurPos = strContext.find_first_not_of(TEXT("\n\r\t"), tCurPos)))
-	{
-		std::tstring strHead1 = strCurContext.substr(tCurPos, 1);
-		std::tstring strHead2 = strCurContext.substr(tCurPos, 2);
-
-		// tag
-		if (strHead1 == TEXT("<"))
-		{
-			size_t tEndTagPos =	strCurContext.find(TEXT(">"), tCurPos);
-			std::tstring strTag = strCurContext.substr(tCurPos, tEndTagPos - tCurPos + 1);
-
-			// OpenTag
-			if (strHead2 != TEXT("</"))
-			{
-				size_t tEndTagPos = strCurContext.find(TEXT(">"), tCurPos);
-				std::tstring strTag = strCurContext.substr(tCurPos, tEndTagPos - tCurPos);
-			}
-			// EndTag
-			else
-			{
-
-			}
-		}
-		// value
-		else
-		{
-			// ST_HTML_NODE& stNode = FindFirstIncompleteNode();
-		}
-		
-
-	}
-}
-
-ECODE HTMLParser::Parse(const std::tstring& strHtmlFile)
-{
-	m_strFileName = strHtmlFile;
-	ECODE nRet = EC_SUCCESS;
+	std::string strTempErrMsg;
 	try
 	{
-		if (!Open(m_strFileName, m_strContext))
-			throw exception_format(TEXT("Open(%s) failure"), strHtmlFile.c_str());
+		// 태그를 기반으로 위치를 파악한다.
+		std::vector<ST_HTML_TOKENIZED_TAG> vecTags;
+		if (!__ScanHtmlContext(strContext, vecTags, strTempErrMsg))
+			throw exception_format("%s", strTempErrMsg.c_str());
 
-		nRet = ParseFromMemory(m_strContext);
-		if (EC_SUCCESS != nRet)
-			throw exception_format(TEXT("ParseFromMemory() failure, %d"), nRet);
+		// 태그를 기반으로 트리를 구성한다.
+		if (!__TokenizeHtmlContext(strContext, vecTags, stOutRoot, strTempErrMsg))
+			throw exception_format("%s", strTempErrMsg.c_str());
+	}
+	catch (const std::exception& e)
+	{
+		strOutErrMsg = TCSFromMBS(e.what());
+		return false;
+	}
+	return true;
+}
+
+ECODE CHtmlParser::Parse(std::tstring strFileName)
+{
+	m_strFileName = strFileName;
+	try
+	{
+		if (!Open(strFileName))
+			throw exception_format(TEXT("Open(%s) failure"), strFileName.c_str());
+
+		if (!ParseFromMemory(m_strContext, m_stRoot, m_strErrMsg))
+			throw exception_format(TEXT("ParseFromMemory failure : %s"), m_strErrMsg.c_str());
 	}
 	catch (const std::exception& e)
 	{
 		Log_Error("%s", e.what());
-		return nRet;
+		return EC_OPEN_FAILURE;
 	}
 	return EC_SUCCESS;
 }
 
-ST_HTML_NODE& HTMLParser::GetRoot()
+ST_HTML_NODE CHtmlParser::GetDomTree(void)
 {
-    return m_stRoot;
+	return m_stRoot;
+}
+
+bool CHtmlParser::GetContext(std::tstring& strOutContext)
+{
+	if (m_strContext.empty())
+		return false;
+
+	strOutContext = m_strContext;
+	return true;
 }
